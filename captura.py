@@ -10,7 +10,6 @@ import urllib.request
 from ctypes import wintypes
 
 user32 = ctypes.windll.user32
-SW_MAXIMIZE = 3
 WM_COMMAND = 0x0111
 
 
@@ -62,8 +61,14 @@ def sin_numeros_largos(t):
     return re.sub(r'\d{5,}', '#', t)
 
 
+SW_RESTORE = 9
+# Tamaño de la ventana del terminal al capturar: estrecha, para que la tabla se lea en un móvil.
+ANCHO_VENTANA, ALTO_VENTANA = 1180, 860
+
+
 def al_frente(hwnd):
-    user32.ShowWindow(hwnd, SW_MAXIMIZE)
+    user32.ShowWindow(hwnd, SW_RESTORE)
+    user32.MoveWindow(hwnd, 0, 0, ANCHO_VENTANA, ALTO_VENTANA, True)
     user32.SetForegroundWindow(hwnd)
     time.sleep(1.5)
 
@@ -120,7 +125,22 @@ def historial():
     user32.PostMessageW(tabla[0], WM_KEYDOWN, VK_END, 0)
     user32.PostMessageW(tabla[0], WM_KEYUP, VK_END, 0)
     time.sleep(1.5)
-    return pantalla().crop(tabla[3])
+    return sin_totales(pantalla().crop(tabla[3]))
+
+
+def sin_totales(imagen):
+    """Quita la barra azul del final (totales de la cuenta: depósitos, retiradas y balance): se publica la tabla de
+    operaciones, no el saldo. Se busca por su color, de abajo arriba."""
+    ancho, alto = imagen.size
+    pixeles = imagen.convert('RGB').load()
+    azul = lambda y: pixeles[40, y][2] > 170 and pixeles[40, y][0] < 80
+    y = alto - 1
+    while y > 0 and not azul(y):
+        y -= 1
+    while y > 0 and azul(y):
+        y -= 1
+    return imagen.crop((0, 0, ancho, y + 1)) if y > 40 else imagen
+
 
 
 def png_de(imagen):
