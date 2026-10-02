@@ -36,6 +36,11 @@ jobs:
           if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { "falta=true" >> $env:GITHUB_OUTPUT; exit 0 }
           $r = Invoke-RestMethod -Uri "$($env:BOT_URL.TrimEnd('/'))/lectura" -Headers @{ authorization = "Bearer $env:INGESTA_CLAVE" }
           "falta=$("$($r.falta)".ToLower())" >> $env:GITHUB_OUTPUT
+      - name: Pantalla grande
+        # Para la captura del historial que acompaña a cada operación cerrada.
+        if: steps.falta.outputs.falta == 'true'
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1600 -Height 900 -Force
       - name: Instalar MetaTrader 5
         if: steps.falta.outputs.falta == 'true'
         shell: pwsh
@@ -49,7 +54,7 @@ jobs:
           Start-Sleep -Seconds 3
           New-Item -ItemType Directory -Force "$destino\Config" | Out-Null
           Copy-Item servers.dat "$destino\Config\servers.dat" -Force
-          python -m pip install --quiet MetaTrader5 tzdata
+          python -m pip install --quiet MetaTrader5 tzdata pillow
       - name: Leer la cuenta
         if: steps.falta.outputs.falta == 'true'
         shell: pwsh

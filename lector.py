@@ -119,6 +119,23 @@ def enviar(cuerpo, motivo):
     return bool(respuesta.get('ok'))
 
 
+def cerradas(cuerpo):
+    """Posiciones que ya tienen un cierre en el historial."""
+    return {d['posicion'] for d in cuerpo['deals'] if d['entrada'] == 'out' and d['tipo'] in ('buy', 'sell')}
+
+
+def capturar(posiciones):
+    """Captura de pantalla REAL del historial del terminal, para que el bot la publique con el aviso de esas
+    operaciones. Si falla, no pasa nada: el aviso sale igual, sin imagen."""
+    try:
+        import captura
+        time.sleep(2)  # que el terminal pinte la fila nueva
+        nombre = captura.mandar(captura.png_de(captura.historial()), sorted(posiciones))
+        print(f'{datetime.now(MADRID):%H:%M:%S} captura del historial enviada ({len(posiciones)} operaciones): {bool(nombre)}', flush=True)
+    except Exception as e:
+        print(f'{datetime.now(MADRID):%H:%M:%S} sin captura: {type(e).__name__}: {e}', flush=True)
+
+
 def en_horario(ahora):
     return ahora.weekday() < 5 and ABRE <= (ahora.hour, ahora.minute) < CIERRA
 
@@ -141,6 +158,7 @@ def vigilar(mt5):
         return
     empezo = time.time()
     huella = (len(cuerpo['deals']), cuerpo['deals'][-1]['ticket'], cuerpo['balance'])
+    ya_cerradas = cerradas(cuerpo)
     ultimo_envio = time.time()
     fallos = 0
     while True:
@@ -169,6 +187,11 @@ def vigilar(mt5):
                 time.sleep(15)
             raise SystemExit('no se pudo enviar la lectura del cierre')
         if nueva != huella:
+            # Primero la captura de lo que se acaba de cerrar: así el bot ya la tiene cuando le llegue la lectura.
+            recien = cerradas(cuerpo) - ya_cerradas
+            if recien:
+                capturar(recien)
+                ya_cerradas |= recien
             if enviar(cuerpo, 'cambio en la cuenta'):
                 huella, ultimo_envio = nueva, time.time()
         elif time.time() - ultimo_envio >= LATIDO:
