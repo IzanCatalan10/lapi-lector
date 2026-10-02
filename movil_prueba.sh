@@ -12,7 +12,8 @@ textos() { # lo que hay escrito en pantalla (sin números largos: nada de cuenta
   adb shell cat /sdcard/v.xml | grep -o 'text="[^"]*"\|resource-id="[^"]*"\|bounds="[^"]*"' | paste - - - 2>/dev/null | grep -v 'text=""' | sed -E 's/[0-9]{5,}/#/g' | head -60
 }
 
-curl -sL -o mt5.apk 'https://download.mql5.com/cdn/mobile/mt5/android?server=MetaQuotes-Demo'
+# El instalador oficial, el que enlaza metatrader5.com en "Download APK".
+curl -sL -o mt5.apk 'https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk'
 ls -la mt5.apk
 file mt5.apk | cut -c1-120
 adb install -r -g mt5.apk || { echo 'no se pudo instalar'; exit 1; }
