@@ -1,0 +1,35 @@
+# Prueba suelta de la captura de pantalla de MetaTrader (no toca la vigilancia: va por su cuenta).
+name: Prueba de captura
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      BOT_URL: ${{ secrets.BOT_URL }}
+      INGESTA_CLAVE: ${{ secrets.INGESTA_CLAVE }}
+      MT5_CUENTA: ${{ secrets.MT5_CUENTA }}
+      MT5_SERVIDOR: ${{ secrets.MT5_SERVIDOR }}
+      MT5_CLAVE: ${{ secrets.MT5_CLAVE }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pantalla grande
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1600 -Height 900 -Force
+      - name: Instalar MetaTrader 5
+        shell: pwsh
+        run: |
+          Invoke-WebRequest 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe' -OutFile mt5setup.exe
+          Start-Process -FilePath .\mt5setup.exe -ArgumentList '/auto' -Wait
+          $destino = 'C:\Program Files\MetaTrader 5'
+          Get-Process terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 3
+          New-Item -ItemType Directory -Force "$destino\Config" | Out-Null
+          Copy-Item servers.dat "$destino\Config\servers.dat" -Force
+          python -m pip install --quiet MetaTrader5 tzdata pillow
+      - name: Capturar
+        shell: pwsh
+        run: python prueba_captura.py
