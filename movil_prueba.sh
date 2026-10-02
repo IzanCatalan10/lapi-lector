@@ -34,4 +34,4 @@ for espera in 45 60; do
   textos
 done
 echo "== registro de la app"
-adb logcat -d 2>/dev/null | grep -i -E 'FATAL|AndroidRuntime|ANR in|metaquotes.*(error|exception|crash)|UnsatisfiedLink|SIGSEGV|libndk' | sed -E 's/[0-9]{5,}/#/g' | tail -25
+adb logcat -d 2>/dev/null | grep -E 'Fatal signal| F DEBUG|F libc|Process: net.metaquotes|E AndroidRuntime|has died|Force finishing|ndk_translation.*(rror|nsupport)|ActivityManager.*metaquotes' | sed -E 's/[0-9]{5,}/#/g' | cut -c1-230 | tail -45
