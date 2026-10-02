@@ -1,0 +1,71 @@
+# Lectura de una cuenta de MT5 (solo lectura) para un bot de resultados.
+#
+# El bot da la orden (workflow_dispatch) y esta máquina se queda vigilando la cuenta durante el horario de mercado:
+# avisa al bot en cuanto se cierra una operación y, tras el cierre, manda la lectura del día. Un trabajo dura como
+# mucho 6 horas, así que antes de acabar llama al siguiente para que tome el relevo. Las pasadas programadas de la
+# noche son solo un respaldo, por si el bot no hubiera dado la orden: una lectura suelta si falta.
+name: Lectura de MT5
+on:
+  schedule:
+    - cron: '4,34 21 * * 1-5'
+    - cron: '4,34 22 * * 1-5'
+    - cron: '30 23 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: lectura
+  cancel-in-progress: false
+jobs:
+  leer:
+    runs-on: windows-latest
+    timeout-minutes: 355
+    env:
+      BOT_URL: ${{ secrets.BOT_URL }}
+      INGESTA_CLAVE: ${{ secrets.INGESTA_CLAVE }}
+      MT5_CUENTA: ${{ secrets.MT5_CUENTA }}
+      MT5_SERVIDOR: ${{ secrets.MT5_SERVIDOR }}
+      MT5_CLAVE: ${{ secrets.MT5_CLAVE }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Ver si hace falta
+        id: falta
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { "falta=true" >> $env:GITHUB_OUTPUT; exit 0 }
+          $r = Invoke-RestMethod -Uri "$($env:BOT_URL.TrimEnd('/'))/lectura" -Headers @{ authorization = "Bearer $env:INGESTA_CLAVE" }
+          "falta=$("$($r.falta)".ToLower())" >> $env:GITHUB_OUTPUT
+      - name: Instalar MetaTrader 5
+        if: steps.falta.outputs.falta == 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe' -OutFile mt5setup.exe
+          Start-Process -FilePath .\mt5setup.exe -ArgumentList '/auto' -Wait
+          $destino = 'C:\Program Files\MetaTrader 5'
+          if (-not (Test-Path "$destino\terminal64.exe")) { throw 'MetaTrader 5 no se ha instalado' }
+          # El instalador deja el terminal abierto: se cierra para arrancarlo luego en modo portátil con nuestros servidores.
+          Get-Process terminal64 -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 3
+          New-Item -ItemType Directory -Force "$destino\Config" | Out-Null
+          Copy-Item servers.dat "$destino\Config\servers.dat" -Force
+          python -m pip install --quiet MetaTrader5 tzdata
+      - name: Leer la cuenta
+        if: steps.falta.outputs.falta == 'true'
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { python lector.py vigilar } else { python lector.py una }
+      - name: Relevo
+        # Si la vigilancia ha acabado bien por el límite de tiempo y el mercado sigue abierto, entra el siguiente.
+        # (Si ha fallado, no se relanza sola: el bot lo nota a los 12 minutos y da la orden él.)
+        if: success() && github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $madrid = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTime]::UtcNow, 'Romance Standard Time')
+          $laborable = $madrid.DayOfWeek -ne 'Saturday' -and $madrid.DayOfWeek -ne 'Sunday'
+          if ($laborable -and $madrid.Hour -ge 8 -and $madrid.Hour -lt 23) {
+            gh workflow run lectura.yml --repo $env:GITHUB_REPOSITORY --ref main
+            "Relevo pedido a las $($madrid.ToString('HH:mm'))"
+          } else { 'Mercado cerrado: sin relevo.' }
