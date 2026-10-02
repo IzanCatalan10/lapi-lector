@@ -16,6 +16,9 @@ textos() { # lo que hay escrito en pantalla (sin números largos: nada de cuenta
 curl -sL -o mt5.apk 'https://download.terminal.free/cdn/web/metaquotes.software.corp/mt5/metatrader5.apk'
 ls -la mt5.apk
 file mt5.apk | cut -c1-120
+adb shell getprop ro.product.cpu.abilist
+unzip -l mt5.apk | grep -o "lib/[^/]*/" | sort -u | tr "
+" " "; echo
 adb install -r -g mt5.apk || { echo 'no se pudo instalar'; exit 1; }
 adb shell pm list packages | grep -i metaquotes
 adb shell monkey -p net.metaquotes.metatrader5 -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
