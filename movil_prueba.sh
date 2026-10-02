@@ -22,6 +22,10 @@ unzip -l mt5.apk | grep -o "lib/[^/]*/" | sort -u | tr "
 adb install -r -g mt5.apk || { echo 'no se pudo instalar'; exit 1; }
 adb shell pm list packages | grep -i metaquotes
 adb shell monkey -p net.metaquotes.metatrader5 -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-sleep 25
-captura arranque
-textos
+for espera in 30 40 50; do
+  sleep $espera
+  echo "== tras $espera s mas"
+  adb shell dumpsys window | grep -E 'mCurrentFocus' | sed -E 's/[0-9]{5,}/#/g'
+  captura "paso-$espera"
+  textos
+done
